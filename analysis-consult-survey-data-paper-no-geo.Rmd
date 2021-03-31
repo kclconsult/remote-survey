@@ -1,0 +1,1350 @@
+---
+title: "CONSULT-remote-survey-data-analysis"
+author: "Isabel Sassoon and Archie Drake"
+date: "March 2021"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+version: '1.2'
+---
+
+```{r setup, echo=FALSE, message=FALSE}
+library(gmodels)
+library(ggplot2)
+library(tidyverse)
+library(summarytools)
+library(flextable)
+library(gridExtra)
+library(reporttools)
+```
+
+Updated following discussion on 14th of Jan - new analysis is at the end of the document.
+Updated 11th of Feb - questions added at the top of the documents for reference
+Updated 17th of Feb to focus on the specific outputs for the paper
+
+```{r read-in-data, echo=FALSE, message=FALSE}
+cons<-read.csv("consult-survey-data.csv")
+#rename columns column and X2
+names(cons)[names(cons) == 'Column'] <- 'comfortable.touchscreen.tech'
+names(cons)[names(cons) == 'X2'] <- 'intersted.health.tech.monitoring'
+
+
+```
+
+## Research question: 
+
+Do stroke survivor’s attitudes to the usability of and data sharing through self-management mobile health apps vary according to certain socio-demographic factors (age, education. disability and living conditions)? If so in what ways.
+
+## The data
+
+The data was collected through an online survey circulated within the Stroke survivor communities. We have had 80 responses.
+
+The main research questions are split into two:
+
+-	SUS  
+-	Attitudes to Data Sharing  
+
+These will be measured from a set of questions on the 5-point likert scale.
+
+The covariates of interest will also be collected in the questionnaire in this format:  
+
+
+-	Age: 18-24; 25-34; 35-44;... 50-59; 60-69; 70-79; 80-89; over 89.  
+-	Education: Levels to fit SLSR: primary, secondary etc.  
+-	Living Conditions categories: private alone, private with others, different types of care homes, etc  
+
+***
+
+# The survey questions
+
+The questions in the form: 
+
+1  What is your age?  
+2. What is the gender you identify with?  
+3. What is your highest level of education?  
+4. What is your occupation?  
+5. What best describes your living conditions?  
+6. Which local authority area do you reside in?  
+7. Do you have a disability?  
+8. How comfortable are you with the use of touchscreen mobile devices?  
+9. How interested are you in using technology to self monitor your health at home, rather than relying solely on clinical appointments (for example with your GP)?  
+10. Do you use, or have you ever used , technology to self monitor your health at home?  
+
+11. How willing would you be to carry out the following task using CONSULT? 
+ - Use the wireless blood pressure cuff to record your blood pressure?  
+ - Use the smartwatch to record your heart rate  
+ - Use the wireless patch to record the electrical activity of your heart  
+ - use your tablet or smartphone to monitor your health data  
+ - get advice about your condition from CONSULT's artificial intelligence agent  
+ - use CONSULT to send your data to your GP or carer
+  
+12. Please indicate your level of agreement with the following statements (totally disagree to totally agree)  
+ - I am willing to make my health data available to the CONSULT system
+ - I am reluctant to make my health data available to the CONSULT system
+ - I would be willing to share my personal health data with the CONSULT system if this was recommended by my GP
+ - I would be willing to share my personal health data with the CONSULT system if this was recommended by my Family and Friends
+ - Using CONSULT to self manage my condition is more important to me than who is in control of my health data
+
+
+
+***
+
+# Initial EDA
+
+
+## Age of responder
+
+```{r table-age, echo=FALSE}
+freq(cons$What.is.your.age., style = 'rmarkdown')
+
+#table(cons$What.is.your.age.)
+```
+
+Within the respondents we have representation from all age groups.
+
+
+## Education levels
+
+```{r table-educarion, echo=FALSE}
+table(cons$What.is.your.highest.level.of.education.)
+```
+
+The responses to the level of education will need to be standardised: Postgraduate + Masters Degree, Undergraduate, Secondary School + other
+
+```{r, echo=FALSE, message=FALSE}
+cons$education<-cons$What.is.your.highest.level.of.education.
+cons$education[cons$What.is.your.highest.level.of.education.=="HNC Electrical, ONC Mecaniçal,"]<-"Other"
+cons$education[cons$What.is.your.highest.level.of.education.=="HND"]<-"Other"
+cons$education[cons$What.is.your.highest.level.of.education.=="Johannesburg art, music and ballet, Johannesburg "]<-"Other"
+
+cons$education[cons$What.is.your.highest.level.of.education.=="Masters Degree"]<-"Postgraduate"
+cons$education[cons$What.is.your.highest.level.of.education.=="nvq in care"]<-"Other"
+cons$education[cons$What.is.your.highest.level.of.education.=="Polytechnic"]<-"Undergraduate"
+cons$education[cons$What.is.your.highest.level.of.education.=="TEACHER"]<-"Other"
+cons$education[cons$What.is.your.highest.level.of.education.=="teaching certificate"]<-"Other"
+cons$education[cons$What.is.your.highest.level.of.education.=="Workbased NVQ level 3 x 6 "]<-"Other"
+
+cons$education<-factor(cons$education, levels=c("Other", "Secondary School", "Undergraduate", "Postgraduate"), ordered = TRUE)
+
+table(cons$What.is.your.highest.level.of.education., cons$education)
+```
+
+Using the grouped education levels we now have:
+
+```{r table-grouped-education, echo=FALSE}
+freq(cons$education, style = "rmarkdown")
+#table(cons$education)
+```
+
+
+## Living conditions
+
+
+```{r table-living-cond, echo=FALSE}
+freq(cons$What.best.describes.your.living.conditions., style = "rmarkdown")
+```
+
+The overwhelming majority of the respondents live in private households with others. Given this distribution it wont be feasible to draw conclusions on this aspect of the respondents.
+
+
+
+## Attitude to usability
+
+### "Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home." (Q10)  
+
+```{r table-used-tech, echo=FALSE}
+table(cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+```
+
+51% of the respondents have used technology to monitor their health at home.
+
+```{r ordered-factors, echo=FALSE, message=FALSE}
+cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure<-factor(cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure,
+                                    levels=c("Not willing at all", "Little willing","Neutral",  "Somewhat willing", "Very willing" ), ordered = TRUE)
+cons$Use.the.smartwatch.to.record.your.heart.rate<-factor(cons$Use.the.smartwatch.to.record.your.heart.rate,
+                                    levels=c("Not willing at all", "Little willing","Neutral", "Somewhat willing", "Very willing" ), ordered = TRUE)
+cons$Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram.<-factor(cons$Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram.,
+                                    levels=c("Not willing at all", "Little willing","Neutral", "Somewhat willing", "Very willing" ), ordered = TRUE)
+cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data<-factor(cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data,
+                                    levels=c("Not willing at all", "Little willing","Neutral", "Somewhat willing", "Very willing" ), ordered = TRUE)
+cons$Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent<-factor(cons$Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent,
+                                    levels=c("Not willing at all", "Little willing","Neutral", "Somewhat willing", "Very willing" ), ordered = TRUE)
+cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer<-factor(cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer,
+                                    levels=c("Not willing at all", "Neutral", "Little willing", "Somewhat willing", "Very willing" ), ordered = TRUE)
+```
+
+## Outputs for the paper section 4.1
+
+Using: https://cran.r-project.org/web/packages/reporttools/vignettes/reporttools.pdf
+
+```{r summary-table-paper}
+vars0<-cons[,c("What.is.your.age.", "education", "What.is.the.gender.you.identify.with.", "What.is.your.occupation.", "What.best.describes.your.living.conditions.", "Do.you.have.a.disability.","comfortable.touchscreen.tech","intersted.health.tech.monitoring", "Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home." )]
+caption1<-"Sample characteristics"
+tableNominal(vars = vars0, cap = caption1, vertical = FALSE, lab = "tab: nominal1", longtable = FALSE)
+```
+
+
+## Question 11
+
+### "Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure"  (Q11a)
+
+**How willing would you be to carry out the following task using CONSULT?
+Use the wireless blood pressure cuff to record your blood pressure?**
+
+```{r table-bpcuff, echo=FALSE}
+table(cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure)
+```
+
+Almost 83% of the respondents were somewhat willing or very willing to use a wireless BP cuff to record blood pressure.
+
+```{r testing-bpcuff, echo=FALSE}
+#fisher.test(cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure, cons$What.is.your.age.)
+fisher.test(cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure, cons$education)
+fisher.test(cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure, cons$Do.you.have.a.disability.)
+fisher.test(cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure, cons$comfortable.touchscreen.tech)
+fisher.test(cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure, cons$intersted.health.tech.monitoring)
+fisher.test(cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure, cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+
+```
+
+
+###  "Use.the.smartwatch.to.record.your.heart.rate" (Q11b) 
+
+**How willing would you be to carry out the following task using CONSULT?
+ - Use the smartwatch to record your heart rate**
+
+```{r table-smartwatch, echo=FALSE}
+table(cons$Use.the.smartwatch.to.record.your.heart.rate)
+```
+
+79% of the respondents were somewhat willing or very willing to use a smartwatch to record their heart rate.
+
+```{r}
+#fisher.test(cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure, cons$What.is.your.age.)
+fisher.test(cons$Use.the.smartwatch.to.record.your.heart.rate, cons$education)
+fisher.test(cons$Use.the.smartwatch.to.record.your.heart.rate, cons$Do.you.have.a.disability.)
+fisher.test(cons$Use.the.smartwatch.to.record.your.heart.rate, cons$comfortable.touchscreen.tech)
+fisher.test(cons$Use.the.smartwatch.to.record.your.heart.rate, cons$intersted.health.tech.monitoring)
+fisher.test(cons$Use.the.smartwatch.to.record.your.heart.rate, cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+```
+
+```{r table-orientation-9-11b, echo=FALSE}
+table(cons$Use.the.smartwatch.to.record.your.heart.rate, cons$intersted.health.tech.monitoring)
+```
+
+
+###  "Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram."   (Q11c) 
+
+**How willing would you be to carry out the following task using CONSULT?
+- Use the wireless patch to record the electrical activity of your heart**
+
+```{r table-patch, echo=FALSE}
+table(cons$Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram.)
+```
+83% of the respondents were somewhat willing or very willing to use a patch to record their ECG.
+
+```{r}
+fisher.test(cons$Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram., cons$education)
+fisher.test(cons$Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram., cons$Do.you.have.a.disability.)
+fisher.test(cons$Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram., cons$comfortable.touchscreen.tech)
+fisher.test(cons$Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram., cons$intersted.health.tech.monitoring)
+fisher.test(cons$Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram., cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+```
+
+```{r orientation-q9-11c, echo=FALSE}
+table(cons$Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram. ,cons$intersted.health.tech.monitoring)
+```
+
+
+### "Use.your.tablet.or.smartphone.to.monitor.your.health.data"  (Q11d)
+
+**How willing would you be to carry out the following task using CONSULT?
+ - use your tablet or smartphone to monitor your health data**
+
+```{r table-tablet, echo=FALSE}
+table(cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data)
+```
+
+78% of the respondents were somewhat willing or very willing to use a tablet or smart phone to monitor their health data.
+
+```{r}
+fisher.test(cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data, cons$education)
+fisher.test(cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data, cons$Do.you.have.a.disability.)
+#fisher.test(cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data, cons$comfortable.touchscreen.tech)
+#fisher.test(cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data, cons$intersted.health.tech.monitoring)
+fisher.test(cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data, cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data)
+```
+
+```{r orientation-q10-q11d, echo=FALSE}
+table(cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data, cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data)
+```
+
+
+
+### "Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent" (Q11e)
+
+**How willing would you be to carry out the following task using CONSULT?
+get advice about your condition from CONSULT's artificial intelligence agent **
+
+
+```{r}
+table(cons$Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent)
+```
+
+74% of the respondents were somewhat willing or very willing to get advice about their condition from CONSULT AI agent.
+
+```{r}
+fisher.test(cons$Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent, cons$education)
+fisher.test(cons$Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent, cons$Do.you.have.a.disability.)
+#fisher.test(cons$Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent, cons$comfortable.touchscreen.tech)
+#fisher.test(cons$Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent, cons$intersted.health.tech.monitoring)
+fisher.test(cons$Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent, cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+```
+
+
+### "Use.CONSULT.to.send.your.data.to.your.GP.or.carer" (Q11f)
+
+**How willing would you be to carry out the following task using CONSULT?
+use CONSULT to send your data to your GP or carer **
+
+
+```{r table-data-gp, echo=FALSE}
+table(cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer)
+```
+
+80% of the respondents were somewhat willing or very willing to sent their data to their GP or carer.
+
+```{r}
+fisher.test(cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer, cons$education)
+fisher.test(cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer, cons$Do.you.have.a.disability.)
+fisher.test(cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer, cons$comfortable.touchscreen.tech)
+fisher.test(cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer, cons$intersted.health.tech.monitoring)
+fisher.test(cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer, cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+```
+
+
+```{r orientation-q9-q11f}
+table(cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer, cons$intersted.health.tech.monitoring)
+```
+
+
+### Graphical summary of the answers to Q11
+
+```{r}
+#title of the main plot How willing would you be to carry out the following task using CONSULT?
+a<-ggplot(cons, aes(Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure)) + geom_bar() + theme_classic() +
+  xlab("Use the wireless blood pressure cuff to record your blood pressure") + scale_y_continuous(breaks=seq(0,50,25))
+b<-ggplot(cons, aes(Use.the.smartwatch.to.record.your.heart.rate)) + geom_bar() + theme_classic() +
+  xlab("Use the smartwatch to record your heart rate")+ scale_y_continuous(breaks=seq(0,50,25))
+c<-ggplot(cons, aes(Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram.)) + geom_bar() + theme_classic() + xlab("Use the wireless patch to record the electrical activity of your heart")+ scale_y_continuous(breaks=seq(0,50,25))
+d<-ggplot(cons, aes(Use.your.tablet.or.smartphone.to.monitor.your.health.data)) + geom_bar() + theme_classic() +xlab("Use your tablet or smartphone to monitor your health data")+ scale_y_continuous(breaks=seq(0,50,25))
+e<-ggplot(cons, aes(Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent)) + geom_bar() + theme_classic() + xlab("Get advice about your condition from CONSULT's artificial intelligence agent")+ scale_y_continuous(breaks=seq(0,50,25))
+
+f<-ggplot(cons, aes(Use.CONSULT.to.send.your.data.to.your.GP.or.carer)) + geom_bar() + theme_classic() + xlab("Use CONSULT to send your data to your GP or carer")+ scale_y_continuous(breaks=seq(0,50,25))
+
+grid.arrange(a,b,c,d,e,f,  ncol=1, nrow=6)
+```
+
+
+
+***
+
+```{r orfered-factor-agree, echo=FALSE, message=FALSE}
+cons$I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors..<-factor(cons$I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors..,
+                                    levels=c("Totally Disagree", "Disagree", "Neutral", "Agree", "Totally Agree" ), ordered = TRUE)
+
+#I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system.
+
+cons$I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system.<-factor(cons$I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system.,
+                                    levels=c("Totally Disagree", "Disagree", "Neutral", "Agree", "Totally Agree" ), ordered = TRUE)
+
+#I.would.be.willing.to.share.my.personal.health.data.with.the..CONSULT.system.if.this.was.recommended.to.me.by.the.GP.
+
+cons$I.would.be.willing.to.share.my.personal.health.data.with.the..CONSULT.system.if.this.was.recommended.to.me.by.the.GP.<-factor(cons$I.would.be.willing.to.share.my.personal.health.data.with.the..CONSULT.system.if.this.was.recommended.to.me.by.the.GP.,
+                                    levels=c("Totally Disagree", "Disagree", "Neutral", "Agree", "Totally Agree" ), ordered = TRUE)
+
+
+#I.would.be.willing.to.make.my.health.data.available.to.the..CONSULT.system.if.this.was.recommended.to.me.by.my.family.or.friends.
+
+cons$I.would.be.willing.to.make.my.health.data.available.to.the..CONSULT.system.if.this.was.recommended.to.me.by.my.family.or.friends.<-factor(cons$I.would.be.willing.to.make.my.health.data.available.to.the..CONSULT.system.if.this.was.recommended.to.me.by.my.family.or.friends.,
+                                    levels=c("Totally Disagree", "Disagree", "Neutral", "Agree", "Totally Agree" ), ordered = TRUE)
+
+
+#Using.CONSULT.to.self.manage.my.condition.is.more.important.to.me.than.who.is.in.control.of.my.health.data.
+cons$Using.CONSULT.to.self.manage.my.condition.is.more.important.to.me.than.who.is.in.control.of.my.health.data.<-factor(cons$Using.CONSULT.to.self.manage.my.condition.is.more.important.to.me.than.who.is.in.control.of.my.health.data.,
+                                    levels=c("Totally Disagree", "Disagree", "Neutral", "Agree", "Totally Agree" ), ordered = TRUE)
+
+
+
+```
+
+## Question 12
+
+Please indicate your level of agreement with the following statements (totally disagree to totally agree)  
+ - I am willing to make my health data available to the CONSULT system
+ - I am reluctant to make my health data available to the CONSULT system
+ - I would be willing to share my personal health data with the CONSULT system if this was recommended by my GP
+ - I would be willing to share my personal health data with the CONSULT system if this was recommended by my Family and Friends
+ - Using CONSULT to self manage my condition is more important to me than who is in control of my health data
+
+
+
+
+
+### "I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors.."  (Q12a)
+
+**Please indicate your level of agreement with the following statements (totally disagree to totally agree)
+- I am willing to make my health data available to the CONSULT system**
+
+```{r}
+table(cons$I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors..)
+```
+
+79% of the respondents were agree or totally agree that they would be willing to make their health data available to the consult system if this involves sharing their health care record with the GP and collect data themselves using wearable sensors. 
+
+```{r}
+fisher.test(cons$I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors.., cons$education)
+fisher.test(cons$I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors.., cons$Do.you.have.a.disability.)
+fisher.test(cons$I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors.., cons$comfortable.touchscreen.tech)
+#fisher.test(cons$I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors.., cons$intersted.health.tech.monitoring)
+fisher.test(cons$I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors.., cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+```
+
+
+### "I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system."  (Q12b)
+
+**Please indicate your level of agreement with the following statements (totally disagree to totally agree)
+- I am reluctant to make my health data available to the CONSULT system**  
+
+```{r table-reluctant, echo=FALSE}
+table(cons$I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system.)
+```
+
+13% of respondents would be reluctant to make their data available to the consult system.
+
+```{r}
+#fisher.test(cons$I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system., cons$education)
+fisher.test(cons$I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system., cons$Do.you.have.a.disability.)
+#fisher.test(cons$I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system., cons$comfortable.touchscreen.tech)
+#fisher.test(cons$I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system., cons$intersted.health.tech.monitoring)
+fisher.test(cons$I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system., cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+```
+
+
+### "I.would.be.willing.to.share.my.personal.health.data.with.the..CONSULT.system.if.this.was.recommended.to.me.by.the.GP."  (Q12c)
+
+**Please indicate your level of agreement with the following statements (totally disagree to totally agree)
+- I would be willing to share my personal health data with the CONSULT system if this was recommended by my GP**
+
+```{r table-willing-consult, echo=FALSE}
+table(cons$I.would.be.willing.to.share.my.personal.health.data.with.the..CONSULT.system.if.this.was.recommended.to.me.by.the.GP.)
+```
+
+85% of respondents agreed or totally agreed that they would be willing to share their personal health data with the consult systetmn if it was recomended by their GP.
+
+```{r}
+fisher.test(cons$I.would.be.willing.to.share.my.personal.health.data.with.the..CONSULT.system.if.this.was.recommended.to.me.by.the.GP., cons$education)
+fisher.test(cons$I.would.be.willing.to.share.my.personal.health.data.with.the..CONSULT.system.if.this.was.recommended.to.me.by.the.GP., cons$Do.you.have.a.disability.)
+fisher.test(cons$I.would.be.willing.to.share.my.personal.health.data.with.the..CONSULT.system.if.this.was.recommended.to.me.by.the.GP., cons$comfortable.touchscreen.tech)
+fisher.test(cons$I.would.be.willing.to.share.my.personal.health.data.with.the..CONSULT.system.if.this.was.recommended.to.me.by.the.GP., cons$intersted.health.tech.monitoring)
+fisher.test(cons$I.would.be.willing.to.share.my.personal.health.data.with.the..CONSULT.system.if.this.was.recommended.to.me.by.the.GP., cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+
+```
+
+```{r orientation-q9-q12c, echo=FALSE}
+table(cons$I.would.be.willing.to.share.my.personal.health.data.with.the..CONSULT.system.if.this.was.recommended.to.me.by.the.GP. , cons$intersted.health.tech.monitoring)
+```
+
+
+### I.would.be.willing.to.make.my.health.data.available.to.the..CONSULT.system.if.this.was.recommended.to.me.by.my.family.or.friends." (Q12d)
+
+**Please indicate your level of agreement with the following statements (totally disagree to totally agree)
+ I would be willing to share my personal health data with the CONSULT system if this was recommended by my Family and Friends**
+
+```{r table-willing-friends, echo=FALSE}
+table(cons$I.would.be.willing.to.make.my.health.data.available.to.the..CONSULT.system.if.this.was.recommended.to.me.by.my.family.or.friends.)
+```
+
+59% of respondents agreed or totally agreed that they would be willing to make their health data available to the consult system if it was recommended by family and friend. 
+
+```{r}
+#fisher.test(cons$I.would.be.willing.to.make.my.health.data.available.to.the..CONSULT.system.if.this.was.recommended.to.me.by.my.family.or.friends., cons$education)
+fisher.test(cons$I.would.be.willing.to.make.my.health.data.available.to.the..CONSULT.system.if.this.was.recommended.to.me.by.my.family.or.friends., cons$Do.you.have.a.disability.)
+fisher.test(cons$I.would.be.willing.to.make.my.health.data.available.to.the..CONSULT.system.if.this.was.recommended.to.me.by.my.family.or.friends., cons$comfortable.touchscreen.tech)
+fisher.test(cons$I.would.be.willing.to.make.my.health.data.available.to.the..CONSULT.system.if.this.was.recommended.to.me.by.my.family.or.friends., cons$intersted.health.tech.monitoring)
+fisher.test(cons$I.would.be.willing.to.make.my.health.data.available.to.the..CONSULT.system.if.this.was.recommended.to.me.by.my.family.or.friends., cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+```
+
+
+*The percentage that agreed or totally agreed that they would be willing to make their health data available is higher if this recomandation came from their GP compared to this coming from family/friends *  
+
+### Using.CONSULT.to.self.manage.my.condition.is.more.important.to.me.than.who.is.in.control.of.my.health.data." (Q12f)
+
+**Please indicate your level of agreement with the following statements (totally disagree to totally agree)
+- Using CONSULT to self manage my condition is more important to me than who is in control of my health data**
+
+```{r table-important, echo=FALSE}
+table(cons$Using.CONSULT.to.self.manage.my.condition.is.more.important.to.me.than.who.is.in.control.of.my.health.data.)
+```
+
+45% of respondents agreed or totally agreed that using a tool such as consult to self manage their condition was more important to them than who is in control of their health data.
+
+*This implies that the majority of respondents are interested in knowing who is in control of their health data*
+
+```{r}
+#fisher.test(cons$Using.CONSULT.to.self.manage.my.condition.is.more.important.to.me.than.who.is.in.control.of.my.health.data., cons$education)
+fisher.test(cons$Using.CONSULT.to.self.manage.my.condition.is.more.important.to.me.than.who.is.in.control.of.my.health.data., cons$Do.you.have.a.disability.)
+#fisher.test(cons$Using.CONSULT.to.self.manage.my.condition.is.more.important.to.me.than.who.is.in.control.of.my.health.data., cons$comfortable.touchscreen.tech)
+#fisher.test(cons$Using.CONSULT.to.self.manage.my.condition.is.more.important.to.me.than.who.is.in.control.of.my.health.data., cons$intersted.health.tech.monitoring)
+fisher.test(cons$Using.CONSULT.to.self.manage.my.condition.is.more.important.to.me.than.who.is.in.control.of.my.health.data., cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+```
+
+
+## Graphical summary of the answers to Q12 
+
+```{r q12-summary, echo=FALSE}
+
+a12<-ggplot(cons, aes(I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors..)) + geom_bar() + theme_classic() +
+  xlab("I am willing to make my health data available to the CONSULT system") + scale_y_continuous(breaks=seq(0,50,25))
+b12<-ggplot(cons, aes(I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system.)) + geom_bar() + theme_classic() +
+  xlab("I am reluctant to make my health data available to the CONSULT system")+ scale_y_continuous(breaks=seq(0,50,25))
+c12<-ggplot(cons, aes(I.would.be.willing.to.share.my.personal.health.data.with.the..CONSULT.system.if.this.was.recommended.to.me.by.the.GP.)) + geom_bar() + theme_classic() + xlab("I would be willing to share my personal health data with the CONSULT system if this was recommended by my GP")+ scale_y_continuous(breaks=seq(0,50,25))
+d12<-ggplot(cons, aes(I.would.be.willing.to.make.my.health.data.available.to.the..CONSULT.system.if.this.was.recommended.to.me.by.my.family.or.friends.)) + geom_bar() + theme_classic() +xlab("I would be willing to share my personal health data with the CONSULT system if this was recommended by my Family and Friends")+ scale_y_continuous(breaks=seq(0,50,25))
+e12<-ggplot(cons, aes(Using.CONSULT.to.self.manage.my.condition.is.more.important.to.me.than.who.is.in.control.of.my.health.data.)) + geom_bar() + theme_classic() + xlab("Using CONSULT to self manage my condition is more important to me than who is in control of my health data")+ scale_y_continuous(breaks=seq(0,50,25))
+
+
+
+grid.arrange(a12,b12,c12,d12,e12,  ncol=1, nrow=5)
+
+```
+
+
+***
+
+# Cross tabulations
+
+### reluctant vs willing
+
+This table just validates that the answers are consistent.
+
+```{r reluctant-vs-willing, echo=FALSE}
+#ctable(cons$I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system., cons$I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors.., style = 'rmarkdown')
+
+
+table(cons$I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system., cons$I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors..)
+
+```
+
+If answers were consistent we expect that anyone answering agree in the first question would then answer disagree in the second one. From this table we can see that among those 28 respondents who agree to the first question (along the top of the table) 19 disagree in the second question, 7 are neutral and 2 contradict themselves.
+Out of the 35 who Totally Agree with the statement in the first question, 22 totally disagree, 8 disagree, 4 are neutral and 1 contradicts themselves. 
+
+```{r plot-reluctant-willing}
+cons$willing<-cons$I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors..
+cons$reluctant.health.data<-cons$I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system.
+ggplot(cons, aes(x=reluctant.health.data)) + geom_bar(aes(fill=willing), position = "dodge") + theme_classic()+
+   scale_fill_grey()
+```
+ There are a few contradicting responses. The last two bar groups at the right are an indication of this.
+
+
+***
+
+
+We will check the different SUS answers vs Age and Education. As noted earlier due to the vast majority of respondents living in similar conditions this wont be analysed.
+
+### "Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home."  (Q10)
+
+ Do you use, or have you ever used , technology to self monitor your health at home?  
+
+```{r used-tech-age-edu, echo=FALSE}
+#ctable(cons$What.is.your.age.,cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.,  style="rmarkdown")
+#ctable(cons$education, cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.,  style="rmarkdown")
+
+table(cons$What.is.your.age.,cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+table(cons$education, cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+table(cons$Do.you.have.a.disability., cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+
+fisher.test(table(cons$education, cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.))
+```
+
+The use of technology to self monitor health at home does not appear to be statistically significantly different across age groups and education levels.
+
+
+```{r plot-self-monitor-age-edu, echo=FALSE}
+cons$self.monitor.home<-cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.
+ggplot(cons, aes(x=What.is.your.age.)) + geom_bar(aes(fill=self.monitor.home), position = "dodge") + theme_classic()+
+   scale_fill_grey()
+
+ggplot(cons, aes(x=education)) + geom_bar(aes(fill=self.monitor.home), position = "dodge") + theme_classic()+
+   scale_fill_grey()
+
+ggplot(cons, aes(x=Do.you.have.a.disability.)) + geom_bar(aes(fill=self.monitor.home), position = "dodge") + theme_classic()+
+   scale_fill_grey()
+
+```
+## Research question - SUS
+
+
+
+
+###  "Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure" (Q11)
+
+How willing would you be to carry out the following task using CONSULT? 
+ - Use the wireless blood pressure cuff to record your blood pressure? 
+ vs. age and education
+
+```{r bp-cuff-vs-age-edu, echo=FALSE}
+#ctable(cons$What.is.your.age.,cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure,  style="rmarkdown")
+#ctable(cons$education, cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure,  style="rmarkdown")
+
+table(cons$What.is.your.age.,cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure)
+table(cons$education, cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure)
+table(cons$Do.you.have.a.disability., cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure)
+
+```
+
+*In order to get a clearer picture I would suggest grouping the likert scale *
+
+```{r plot-wireless-cuff-age-edu, echo=FALSE}
+
+cons$wireless.cuff<-cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure
+ggplot(cons, aes(x=What.is.your.age.)) + geom_bar(aes(fill=wireless.cuff), position = "dodge") + theme_classic() +
+  scale_fill_grey()
+
+ggplot(cons, aes(x=education)) + geom_bar(aes(fill=wireless.cuff), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+
+ggplot(cons, aes(x=Do.you.have.a.disability.)) + geom_bar(aes(fill=wireless.cuff), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+
+```
+
+
+### "Use.the.smartwatch.to.record.your.heart.rate"   (Q11)
+
+How willing would you be to carry out the following task using CONSULT? 
+ - Use the smartwatch to record your heart rate  
+
+```{r smart-watch-age-edu, echo=FALSE}
+#ctable(cons$What.is.your.age.,cons$Use.the.smartwatch.to.record.your.heart.rate,  style="rmarkdown")
+#ctable(cons$education, cons$Use.the.smartwatch.to.record.your.heart.rate,  style="rmarkdown")
+
+table(cons$What.is.your.age.,cons$Use.the.smartwatch.to.record.your.heart.rate)
+table(cons$education, cons$Use.the.smartwatch.to.record.your.heart.rate)
+table(cons$Do.you.have.a.disability.,cons$Use.the.smartwatch.to.record.your.heart.rate )
+
+```
+
+```{r plot-smart-watch-age-edu, echo=FALSE}
+cons$smart.watch<-cons$Use.the.smartwatch.to.record.your.heart.rate
+ggplot(cons, aes(x=What.is.your.age.)) + geom_bar(aes(fill=smart.watch), position = "dodge") + theme_classic() +
+  scale_fill_grey()
+
+ggplot(cons, aes(x=education)) + geom_bar(aes(fill=smart.watch), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+
+ggplot(cons, aes(x=Do.you.have.a.disability.)) + geom_bar(aes(fill=smart.watch), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+
+```
+Across all age groups and education levels there is a similar trend of willingness to use a smart watch to monitor heart rate.
+
+### "Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram."  (Q11)
+
+11. How willing would you be to carry out the following task using CONSULT? 
+ Use the wireless patch to record the electrical activity of your heart  
+
+
+```{r patch-vs-age-edu, echo=FALSE}
+#ctable(cons$What.is.your.age.,cons$Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram.,  style="rmarkdown")
+#ctable(cons$education, cons$Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram.,  style="rmarkdown")
+
+table(cons$What.is.your.age.,cons$Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram.)
+table(cons$education, cons$Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram.)
+table(cons$Do.you.have.a.disability., cons$Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram.)
+
+
+
+```
+
+```{r plot-patch-vs-age-edu, echo=FALSE}
+cons$wireless.patch<-cons$Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram.
+ggplot(cons, aes(x=What.is.your.age.)) + geom_bar(aes(fill=wireless.patch), position = "dodge") + theme_classic() +
+  scale_fill_grey()
+
+ggplot(cons, aes(x=education)) + geom_bar(aes(fill=wireless.patch), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+
+
+ggplot(cons, aes(x=Do.you.have.a.disability.)) + geom_bar(aes(fill=wireless.patch), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+```
+Across all age groups and education levels there is a similar trend of willingness to use a patch to monitor ECG. We can see that in "other" for education this is not the case, but there are also very few respondents in this category.
+
+### "Use.your.tablet.or.smartphone.to.monitor.your.health.data"   (Q11)
+
+How willing would you be to carry out the following task using CONSULT? 
+ - use your tablet or smartphone to monitor your health data  
+
+
+```{r tablet-age-edu, echo=FALSE}
+#ctable(cons$What.is.your.age.,cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data,  style="rmarkdown")
+#ctable(cons$education, cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data,  style="rmarkdown")
+
+table(cons$What.is.your.age.,cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data)
+table(cons$education, cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data)
+
+table(cons$Do.you.have.a.disability., cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data)
+
+
+```
+
+```{r plot-tablet-age-edu, echo=FALSE}
+cons$tablet<-cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data
+ggplot(cons, aes(x=What.is.your.age.)) + geom_bar(aes(fill=tablet), position = "dodge") + theme_classic() +
+  scale_fill_grey()
+
+ggplot(cons, aes(x=education)) + geom_bar(aes(fill=tablet), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+
+
+ggplot(cons, aes(x=Do.you.have.a.disability.)) + geom_bar(aes(fill=tablet), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+```
+Across all age groups and education levels there is a similar trend of willingness to use a tablet to monitor their health data. We can see that in "other" for education this is not the case, but there are also very few respondents in this category.
+
+
+### "Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent"  (Q11)
+
+How willing would you be to carry out the following task using CONSULT? 
+ - get advice about your condition from CONSULT's artificial intelligence agent  
+
+```{r advice-age-edu, echo=FALSE}
+table(cons$Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent, cons$What.is.your.age.)
+#ctable(cons$What.is.your.age.,cons$Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent,  style="rmarkdown")
+table(cons$education, cons$Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent)
+
+
+table(cons$Do.you.have.a.disability., cons$Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent)
+```
+
+```{r plot-advice-age-edu, echo=FALSE}
+cons$advice.ai<-cons$Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent
+ggplot(cons, aes(x=What.is.your.age.)) + geom_bar(aes(fill=advice.ai), position = "dodge") + theme_classic() +
+  scale_fill_grey()
+
+ggplot(cons, aes(x=education)) + geom_bar(aes(fill=advice.ai), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+
+
+ggplot(cons, aes(x=Do.you.have.a.disability.)) + geom_bar(aes(fill=advice.ai), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+```
+Om contrast to the other questions in this section, when asked if they would be willing to get advice from Consult AI agent the trend was not so clear, especially in the younger age groups and "other" and postgraduate education. The majority were still somewhat and very willing.
+
+### "Use.CONSULT.to.send.your.data.to.your.GP.or.carer"   (Q11)
+
+How willing would you be to carry out the following task using CONSULT? 
+ - use CONSULT to send your data to your GP or carer
+
+```{r consult-gp-age-edu, echo=FALSE}
+table(cons$What.is.your.age.,cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer)
+table(cons$education, cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer)
+
+
+table(cons$Do.you.have.a.disability., cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer)
+
+```
+
+```{r plot-consult-gp-age-edu, echo=FALSE}
+cons$data.gp<-cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer
+ggplot(cons, aes(x=What.is.your.age.)) + geom_bar(aes(fill=data.gp), position = "dodge") + theme_classic() +
+  scale_fill_grey()
+
+ggplot(cons, aes(x=education)) + geom_bar(aes(fill=data.gp), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+
+
+
+ggplot(cons, aes(x=Do.you.have.a.disability.)) + geom_bar(aes(fill=data.gp), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+
+```
+Across all categories most of the respondents were somewhat willing or very willing to send data to their GP or carer.
+
+## Research question - attitude to data sharing  (q12)
+
+In this section we analyse the attitude to data sharing vs age and education levels.
+
+
+
+### "I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors.." (Q12)
+
+12. Please indicate your level of agreement with the following statements (totally disagree to totally agree)  
+ - I am willing to make my health data available to the CONSULT system
+
+```{r health-data-conslt-age-edu, echo=FALSE}
+table(cons$What.is.your.age.,cons$I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors..)
+table(cons$education, cons$I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors..)
+
+
+
+table(cons$Do.you.have.a.disability., cons$I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors..)
+
+```
+
+
+```{r plot-health-data-conslt-age-edu, echo=FALSE}
+cons$data.consult<-cons$I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors..
+ggplot(cons, aes(x=What.is.your.age.)) + geom_bar(aes(fill=data.consult), position = "dodge") + theme_classic() +
+  scale_fill_grey()
+
+ggplot(cons, aes(x=education)) + geom_bar(aes(fill=data.consult), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+
+
+ggplot(cons, aes(x=Do.you.have.a.disability.)) + geom_bar(aes(fill=data.consult), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+```
+Across all categories (age and education) respondents Agreed and totally agreed with "making their healthcare data available to the consult system including self collected data.  
+
+
+### "I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system."  (Q12)
+
+Please indicate your level of agreement with the following statements (totally disagree to totally agree)  
+ - I am reluctant to make my health data available to the CONSULT system
+
+
+```{r reluctant-age-edu, echo=FALSE}
+table(cons$What.is.your.age.,cons$I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system.)
+table(cons$education, cons$I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system.)
+
+table(cons$Do.you.have.a.disability., cons$I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system.)
+
+```
+
+```{r plot-reluctant-age-edu, echo=FALSE}
+#cons$reluctant.health.data<-cons$I.am.reluctant.to.make.my.health.data.available.to.the.CONSULT.system.
+ggplot(cons, aes(x=What.is.your.age.)) + geom_bar(aes(fill=reluctant.health.data), position = "dodge") + theme_classic() +
+  scale_fill_grey()
+
+ggplot(cons, aes(x=education)) + geom_bar(aes(fill=reluctant.health.data), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+
+
+ggplot(cons, aes(x=Do.you.have.a.disability.)) + geom_bar(aes(fill=reluctant.health.data), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+
+```
+This question is a "negative version" of the previous one. We can see that broadly the responses are consistent. In the plots the totally disagree and disagree bars are the ones with most responses in all categories except in the education=other.
+
+
+### "I.would.be.willing.to.share.my.personal.health.data.with.the..CONSULT.system.if.this.was.recommended.to.me.by.the.GP."   (Q12)
+
+ Please indicate your level of agreement with the following statements (totally disagree to totally agree)  
+ - I would be willing to share my personal health data with the CONSULT system if this was recommended by my GP
+
+
+```{r gp-share-age-edu, echo=FALSE}
+table(cons$What.is.your.age.,cons$I.would.be.willing.to.share.my.personal.health.data.with.the..CONSULT.system.if.this.was.recommended.to.me.by.the.GP.)
+table(cons$education, cons$I.would.be.willing.to.share.my.personal.health.data.with.the..CONSULT.system.if.this.was.recommended.to.me.by.the.GP.)
+
+table(cons$Do.you.have.a.disability., cons$I.would.be.willing.to.share.my.personal.health.data.with.the..CONSULT.system.if.this.was.recommended.to.me.by.the.GP.)
+
+```
+
+```{r plot-gp-share-age-edu, echo=FALSE}
+cons$willing.share.gp<-cons$I.would.be.willing.to.share.my.personal.health.data.with.the..CONSULT.system.if.this.was.recommended.to.me.by.the.GP.
+ggplot(cons, aes(x=What.is.your.age.)) + geom_bar(aes(fill=willing.share.gp), position = "dodge") + theme_classic() +
+  scale_fill_grey()
+
+ggplot(cons, aes(x=education)) + geom_bar(aes(fill=willing.share.gp), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+
+ggplot(cons, aes(x=Do.you.have.a.disability.)) + geom_bar(aes(fill=willing.share.gp), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+
+```
+Most of the respondents were in the agree and totally agree categories across all age groups and education levels.
+
+### "I.would.be.willing.to.make.my.health.data.available.to.the..CONSULT.system.if.this.was.recommended.to.me.by.my.family.or.friends." (Q12)
+
+Please indicate your level of agreement with the following statements (totally disagree to totally agree)  
+ - I would be willing to share my personal health data with the CONSULT system if this was recommended by my Family and Friends
+
+```{r family-age-edu, echo=FALSE}
+table(cons$What.is.your.age.,cons$I.would.be.willing.to.make.my.health.data.available.to.the..CONSULT.system.if.this.was.recommended.to.me.by.my.family.or.friends.)
+table(cons$education, cons$I.would.be.willing.to.make.my.health.data.available.to.the..CONSULT.system.if.this.was.recommended.to.me.by.my.family.or.friends.)
+
+table(cons$Do.you.have.a.disability., cons$I.would.be.willing.to.make.my.health.data.available.to.the..CONSULT.system.if.this.was.recommended.to.me.by.my.family.or.friends.)
+
+```
+
+```{r plot-family-age-edu, echo=FALSE}
+cons$willing.share.family<-cons$I.would.be.willing.to.make.my.health.data.available.to.the..CONSULT.system.if.this.was.recommended.to.me.by.my.family.or.friends.
+ggplot(cons, aes(x=What.is.your.age.)) + geom_bar(aes(fill=willing.share.family), position = "dodge") + theme_classic() +
+  scale_fill_grey()
+
+ggplot(cons, aes(x=education)) + geom_bar(aes(fill=willing.share.family), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+
+
+ggplot(cons, aes(x=Do.you.have.a.disability.)) + geom_bar(aes(fill=willing.share.family), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+```
+This variable paints a slightly more varied picture, with some age groups being more towards a neutral answer (65-74).
+
+*This one may be worth analysing by compressing totally agree and agree (etc..) into one cateogory*
+
+## Compressing the likert into 2 for Q11 (GP and Friends family)
+
+```{r collapsinglikert, echo=FALSE, message=FALSE}
+cons$willing.share.gp.2<-as.character(cons$willing.share.gp)
+cons$willing.share.gp.2[cons$willing.share.gp=="Agree"]<-"Agree or Neutral"
+cons$willing.share.gp.2[cons$willing.share.gp=="Disagree"]<-"Disagree"
+cons$willing.share.gp.2[cons$willing.share.gp=="Totally Agree"]<-"Agree or Neutral"
+cons$willing.share.gp.2[cons$willing.share.gp=="Neutral"]<-"Agree or Neutral"
+cons$willing.share.gp.2[cons$willing.share.gp=="Totally Disagree"]<-"Disagree"
+
+cons$willing.share.family.2<-as.character(cons$willing.share.gp)
+cons$willing.share.family.2[cons$willing.share.family=="Agree"]<-"Agree or Neutral"
+cons$willing.share.family.2[cons$willing.share.family=="Disagree"]<-"Disagree"
+cons$willing.share.family.2[cons$willing.share.family=="Totally Agree"]<-"Agree or Neutral"
+cons$willing.share.family.2[cons$willing.share.family=="Neutral"]<-"Agree or Neutral"
+cons$willing.share.family.2[cons$willing.share.family=="Totally Disagree"]<-"Disagree"
+```
+
+
+```{r collapsed-likert-gp, echo=FALSE}
+table(cons$willing.share.gp.2, cons$education)
+table(cons$willing.share.gp.2,  cons$What.is.your.age.)
+
+table(cons$willing.share.gp.2,  cons$Do.you.have.a.disability.)
+```
+
+```{r}
+table(cons$willing.share.family.2, cons$education)
+table(cons$willing.share.gp.2, cons$What.is.your.age.)
+
+table(cons$willing.share.gp.2, cons$Do.you.have.a.disability.)
+
+```
+
+
+### "Using.CONSULT.to.self.manage.my.condition.is.more.important.to.me.than.who.is.in.control.of.my.health.data."    (Q12)
+
+Please indicate your level of agreement with the following statements (totally disagree to totally agree)  
+ - Using CONSULT to self manage my condition is more important to me than who is in control of my health data
+
+
+```{r consult-use-age-edu, echo=FALSE}
+table(cons$What.is.your.age.,cons$Using.CONSULT.to.self.manage.my.condition.is.more.important.to.me.than.who.is.in.control.of.my.health.data.)
+table(cons$education, cons$Using.CONSULT.to.self.manage.my.condition.is.more.important.to.me.than.who.is.in.control.of.my.health.data.)
+
+table(cons$Do.you.have.a.disability., cons$Using.CONSULT.to.self.manage.my.condition.is.more.important.to.me.than.who.is.in.control.of.my.health.data.)
+```
+
+```{r plot-consult-use-age-edu, echo=FALSE}
+cons$consult.use<-cons$Using.CONSULT.to.self.manage.my.condition.is.more.important.to.me.than.who.is.in.control.of.my.health.data.
+ggplot(cons, aes(x=What.is.your.age.)) + geom_bar(aes(fill=consult.use), position = "dodge") + theme_classic() +
+  scale_fill_grey()
+
+ggplot(cons, aes(x=education)) + geom_bar(aes(fill=consult.use), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+
+ggplot(cons, aes(x=Do.you.have.a.disability.)) + geom_bar(aes(fill=consult.use), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+```
+This question touched on the balance between having control of who sees one's health data vs the ability to self manage. In this the answered were more varied and perhaps can be analysed by compressing the totally agree and agree categories etc together to get a clearer picture.
+
+```{r new-grouped-likert, echo=FALSE, message=FALSE}
+cons$consult.use.grouped<-cons$consult.use
+cons$consult.use.grouped[cons$consult.use=="Totally Disagree"]<-"Disagree"
+cons$consult.use.grouped[cons$consult.use=="Totally Agree"]<-"Agree"
+cons$consult.use.grouped<-factor(cons$consult.use.grouped, levels=c("Disagree", "Neutral", "Agree"), ordered = TRUE)
+```
+
+```{r consult-use-age-edu-grouped, echo=FALSE}
+table(cons$What.is.your.age.,cons$consult.use.grouped)
+table(cons$education, cons$consult.use.grouped)
+
+table(cons$Do.you.have.a.disability., cons$consult.use.grouped)
+
+```
+
+
+
+```{r plot-consult-use-age-edu-grouped, echo=FALSE}
+ggplot(cons, aes(x=What.is.your.age.)) + geom_bar(aes(fill=consult.use.grouped), position = "dodge") + theme_classic() +
+  scale_fill_grey()
+
+ggplot(cons, aes(x=education)) + geom_bar(aes(fill=consult.use.grouped), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+
+ggplot(cons, aes(x=Do.you.have.a.disability.)) + geom_bar(aes(fill=consult.use.grouped), position = "dodge") + theme_classic() +
+   scale_fill_grey()
+```
+
+# saving a copy of the analysis data into a .Rda file
+This can be a starting point for secondary analysis in a separate file
+
+```{r SaveAnalysisData, echo=FALSE, message=FALSE }
+save(cons, file="survey-analysis-data.Rda")
+```
+
+***
+
+# Comparing to the known demographics of the stroke population
+
+in order to get an indication to whether our sample is representative of the stroke population we can compare it to the literature estimates and we can also compare it to the findings from analysing the SLSR (South London Stroke Registry). 
+
+## Comparing to the SLSR
+
+In a separate analysis of the SLSR we found that 43% of the partients were Female, in this survey data the percentage of Female respondents was 
+39 out of 80 respondents. THis is 49%. 
+The distribution of age for the SLSR had a mean of 69.6, median 70.76 (range 19 - 119)
+
+**NOTE: the SLSR data was summarised outside this analysis**
+
+```{r slsr-data, echo=FALSE}
+age.groups<-c("18-34", "35-44",	"45-54", 	"55-64", 	"65-74",	"75+")
+survey.resp<-c(7,8, 13,23,	18,	11)
+slsr<-c(34,	97,	249,	470,	527,	973)
+
+survey.sum<-80
+slsr.sum<-2350
+
+survey.resp.prop<-survey.resp/survey.sum*100
+slsr.prop<-slsr/slsr.sum*100
+
+age.df<-as.data.frame(cbind(age.groups, survey.resp.prop, slsr.prop))
+
+age.groups2<-c("18-34", "35-44",	"45-54", 	"55-64", 	"65-74",	"75+", "18-34", "35-44",	"45-54", 	"55-64", 	"65-74",	"75+")
+perc<-c(slsr.prop, survey.resp.prop)
+source<-c("SLSR", "SLSR","SLSR","SLSR","SLSR","SLSR", "Survey", "Survey","Survey","Survey","Survey","Survey")
+age.group.df<-as.data.frame(cbind(source, age.groups2, perc))
+age.group.df$perc<-as.numeric(age.group.df$perc)
+```
+
+### The SLSR age vs. Survey age respondents plot
+
+
+```{r}
+ggplot(age.group.df, aes(age.groups2, perc, fill=source)) + geom_bar(stat = "identity", position = 'dodge') + theme_classic() + scale_fill_grey() + ggtitle("Age Distribution Survey Responders vs SLSR") + xlab("Age Group") + ylab("Percentage in Age Group") +
+theme(text=element_text(size=16), legend.position = "top")   
+```
+
+### The survey age plot
+
+```{r plot-age-disd, echo=FALSE}
+ggplot(cons) + geom_bar(aes(x=What.is.your.age.)) + theme_bw() +ggtitle("Age distribtuion of Survey Respondents")
+
+```
+
+The age distribution of the respondents reflects a younger demographic. This is not surprising given the methods of dissemination used to recruit participants to this survey. 
+
+We can also compare the levels of education between the survey and the SLSR. In the SLSR we observed the following:  
+
+ - First stage of tertiary 223, lower secondary 484, No formal education 32, Not recorded 430, Post decondary non tertiary 141, primary 113, second stage of tertiary 86, unknown 250 and upper secondary 591  
+ - Within the survey respondents 38% had postgraduate education, 36% secondary school education and 18% had undergraduate as their highest level of education. 
+
+We can also compare the living situation In the SLSR we observed the following:
+
+ - Care home 27, Long term hospital care 56, nursing home 25, Private household alone 643, private household with others 1183, residential home 17, shelered home 73 and other 15. (total 2300)  
+ - In the survey responders we had 79% in Private Household with others and 15% in Private Household alone. These are the two most frequent categories in SLSR and consitent with the bias our methods of recruiting respondents will have introduced.
+
+
+***
+
+# Analysis following discussion on 14/01/2021
+
+The following changes and further analysis was discussed:  
+
+ - Standartisation of the geography
+  - Looking at whether there were any trends when comparing education level and age  
+  - For each of the attitude questions - compute a new aggregated response variable which will take the likert scale and compress it to three or two values: the **resitants** and the others. Then visualise and analyse these vs the socio economic factors(age, education)  
+  - Explore the employment status vs age. This can also involve grouping the age into above vs below a set value (retirement age?) and standardising the employment status to: employed (including self employed) vs not employed (inc retired)  
+  - (for future analysis we can look to combine the responses to one score per participant for attitude to data shareing and one for attitide to technology and then cluster this across the different socio economic factors. This data is too small for this to be robust so only for exploration)
+  
+  
+## Standardising the Geography
+
+
+## Education level and age
+
+```{r}
+table(cons$education, cons$What.is.your.age.)
+```
+
+
+## Employment Status vs Age
+
+```{r}
+table(cons$What.is.your.occupation., cons$What.is.your.age.)
+```
+
+
+***
+
+# Archie's analysis - transformations
+
+Initial exploration indicates sizeable minority of respondents consistently very well disposed to system
+*How does the SES profile of this group compare to other respondents?*
+
+## How Willing?
+
+Create new variable '$HowWilling' based on Q11 (How willing would you be to carry out the following tasks using CONSULT?)  
+ - "Very willing": respondents who replied 'Very Willing' to ALL questions 
+ - "Unwilling": respondents who replied 'Not willing at all' or 'Little willing' to ANY question 
+ - "Mixed": neither Willing nor Unwilling
+ 
+```{r willing-tranform, echo=FALSE, message=FALSE}
+cons$HowWilling <- ifelse(
+    ( 
+        (cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure == "Very willing") &
+        (cons$Use.the.smartwatch.to.record.your.heart.rate == "Very willing") &
+        (cons$Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram. == "Very willing") &
+        (cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data == "Very willing") &
+        (cons$Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent == "Very willing") &
+        (cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer == "Very willing")
+    ),
+    "Very willing",  # if condition is met
+    "Mixed"   # else assume mixed
+)
+
+cons$HowWilling <- ifelse(
+    ( 
+xor((cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure == "Not willing at all"), (cons$Use.the.wireless.blood.pressure.cuff.to.record.your.blood.pressure == "Little willing")) |
+xor((cons$ Use.the.smartwatch.to.record.your.heart.rate == "Not willing at all"), (cons$ Use.the.smartwatch.to.record.your.heart.rate == "Little willing")) |
+xor((cons$Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram. == "Not willing at all"), (cons$Use.the.wireless.patch.to.record.the.electrical.activity.of.your.heart..electrocardiogram. == "Little willing")) |
+xor((cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data == "Not willing at all"), (cons$Use.your.tablet.or.smartphone.to.monitor.your.health.data == "Little willing")) |
+xor((cons$Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent == "Not willing at all"), (cons$Get.advice.about.your.condition.from.CONSULT.s.artificial.intelligence.agent == "Little willing")) |
+xor((cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer == "Not willing at all"), (cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer == "Little willing"))
+    ),
+    "Unwilling",  # if condition is met, mark Unwilling rather than Mixed
+    cons$HowWilling   # else use existing value
+)
+
+cons$HowWilling <- factor(cons$HowWilling, levels = c("Unwilling", "Mixed", "Very willing"))
+
+```
+ 
+# Explore relevance of SES etc to $HowWilling
+
+## Tables of each of SES/initial variables vs $HowWilling
+
+```{r willing-table, echo=FALSE}
+table(cons$HowWilling, cons$What.is.your.age.)
+fisher.test(cons$HowWilling, cons$What.is.your.age.)
+
+table(cons$HowWilling, cons$What.is.the.gender.you.identify.with.)
+fisher.test(cons$HowWilling, cons$What.is.the.gender.you.identify.with.)
+
+table(cons$HowWilling, cons$education)
+fisher.test(cons$HowWilling, cons$education)
+
+table(cons$HowWilling, cons$What.is.your.occupation.)
+fisher.test(cons$HowWilling, cons$What.is.your.occupation.)
+
+table(cons$HowWilling, cons$What.best.describes.your.living.conditions.)
+fisher.test(cons$HowWilling, cons$What.best.describes.your.living.conditions.)
+
+table(cons$HowWilling, cons$Do.you.have.a.disability.)
+fisher.test(cons$HowWilling, cons$Do.you.have.a.disability.)
+
+table(cons$HowWilling, cons$comfortable.touchscreen.tech) # nb question How comfortable are you with the use of touchscreen mobile devices (e.g. smartphones or tablets)?
+fisher.test(cons$HowWilling, cons$comfortable.touchscreen.tech)
+
+table(cons$HowWilling, cons$intersted.health.tech.monitoring) # nb How interested are you in using technology to self-monitor your health at home, rather than relying solely on clinical appointments (for example with your GP)?
+fisher.test(cons$HowWilling, cons$intersted.health.tech.monitoring)
+
+table(cons$HowWilling, cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+fisher.test(cons$HowWilling, cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+
+```
+
+## How Agree?
+
+Create new variable 'HowAgree' based on first question of Q12 (I am willing to make my health data available to the CONSULT system (this involves sharing my healthcare data in the GP record and data collected by myself using wearable sensors) 
+plus final question of Q11:  
+
+ - "Totally Agree": respondents who replied 'Totally Agree' (or 'Very Willing') to both questions
+ - "Disagree": respondents who replied 'Totally Disagree' or 'Disagree' (or 'Not willing at  all' or 'Little willing') to either question
+ - "Mixed": neither Agreeable nor Disagreeable
+
+```{r}
+###
+
+cons$HowAgree <- ifelse(
+    ( 
+        (cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer == "Very willing") &
+        (cons$I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors.. == "Totally Agree")
+     ),
+    "Totally Agree",  # if condition is met
+    "Mixed"   # else assume mixed
+)
+
+cons$HowAgree <- ifelse(
+    ( 
+xor((cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer == "Not willing at all"), (cons$Use.CONSULT.to.send.your.data.to.your.GP.or.carer == "Little willing")) |
+xor((cons$ I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors.. == "Totally Disagree"), 
+(cons$ I.am.willing.to.make.my.health.data.available.to.the.CONSULT.system..this.involves.sharing.my.healthcare.data.in.the.GP.record.and.data.collected.by.myself.using.wearable.sensors.. == "Disagree"))
+    ),
+    "Disagree",  # if condition is met, mark Disagreeable rather than Mixed
+    cons$HowAgree   # else use existing value
+)
+
+cons$HowAgree <- factor(cons$HowAgree, levels = c("Disagree", "Mixed", "Totally Agree"))
+```
+
+### Tables for How Agree
+
+```{r how-agree-table, echo=FALSE}
+
+table(cons$HowAgree, cons$What.is.your.age.)
+fisher.test(cons$HowAgree, cons$What.is.your.age.)
+
+table(cons$HowAgree, cons$What.is.the.gender.you.identify.with.)
+fisher.test(cons$HowAgree, cons$What.is.the.gender.you.identify.with.)
+
+table(cons$HowAgree, cons$education)
+fisher.test(cons$HowAgree, cons$education)
+
+table(cons$HowAgree, cons$What.is.your.occupation.)
+fisher.test(cons$HowAgree, cons$What.is.your.occupation.)
+
+table(cons$HowAgree, cons$What.best.describes.your.living.conditions.)
+fisher.test(cons$HowAgree, cons$What.best.describes.your.living.conditions.)
+
+table(cons$HowAgree, cons$Do.you.have.a.disability.)
+fisher.test(cons$HowAgree, cons$Do.you.have.a.disability.)
+
+table(cons$HowAgree, cons$comfortable.touchscreen.tech) # nb question How comfortable are you with the use of touchscreen mobile devices (e.g. smartphones or tablets)?
+fisher.test(cons$HowAgree, cons$comfortable.touchscreen.tech)
+
+table(cons$HowAgree, cons$intersted.health.tech.monitoring) # nb How interested are you in using technology to self-monitor your health at home, rather than relying solely on clinical appointments (for example with your GP)?
+fisher.test(cons$HowAgree, cons$intersted.health.tech.monitoring)
+
+table(cons$HowAgree, cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+fisher.test(cons$HowAgree, cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+
+```
+
+
+
+
+## table for Latex
+
+```{r}
+vars1<-cons[,c("HowWilling", "HowAgree" )]
+caption1<-"New Transformations characteristics"
+tableNominal(vars = vars1, cap = caption1, vertical = FALSE, lab = "tab: nominal1", longtable = FALSE)
+```
+
+## How Agree vs How Willing
+
+```{r}
+table(cons$HowAgree, cons$HowWilling)
+fisher.test(cons$HowAgree, cons$HowWilling)
+```
+
+
+
+## plots- Figure 5 of the paper
+
+```{r, echo=FALSE}
+ggplot(cons, aes(x=What.is.your.age.)) + geom_bar(aes(fill=HowWilling), position = "dodge") + theme_classic()+
+   scale_fill_grey()
+
+ggplot(cons, aes(x=What.is.the.gender.you.identify.with.)) + geom_bar(aes(fill=HowWilling), position = "dodge") + theme_classic()+
+   scale_fill_grey()
+
+#figure 5
+ggplot(cons, aes(x=education)) + geom_bar(aes(fill=HowWilling), position = "dodge") + theme_classic()+
+   scale_fill_grey() + ggtitle("How Willing vs Education") +
+   theme(text=element_text(size=16), legend.position = "top")+
+   ylab("Number of respondents")
+
+cons$Column <- factor(cons$comfortable.touchscreen.tech, levels = c("Very uncomfortable", "Somewhat uncomfortable", "Neutral", "Somewhat comfortable", "Very comfortable"))
+
+ggplot(cons, aes(x=comfortable.touchscreen.tech)) + geom_bar(aes(fill=HowWilling), position = "dodge") + theme_classic()+
+   scale_fill_grey()
+```
+
+# Enthusiasts vs Opponents
+
+```{r def-enthusiasts-opponents, echo=FALSE}
+cons$Groups <- ifelse(
+    ( 
+        (cons$HowWilling == "Very willing") &
+        (cons$HowAgree == "Totally Agree")
+     ),
+    "Enthusiast",  # if condition is met
+    "Mixed"   # else assume mixed
+)
+
+cons$Groups <- ifelse(
+    ( 
+        (cons$HowWilling == "Unwilling") &
+        (cons$HowAgree == "Disagree")
+     ),
+    "Opponent",  # if condition is met
+    cons$Groups   # else assume mixed
+)
+
+cons$Groups <- factor(cons$Groups, levels = c("Opponent", "Mixed", "Enthusiast"))
+
+table(cons$Groups)
+```
+
+## Analysis of the new Factor - Groups
+
+```{r analysis-groups, echo=FALSE}
+table(cons$Groups, cons$What.is.your.age.)
+fisher.test(cons$Groups, cons$What.is.your.age.)
+
+table(cons$Groups, cons$What.is.the.gender.you.identify.with.)
+fisher.test(cons$Groups, cons$What.is.the.gender.you.identify.with.)
+
+table(cons$Groups, cons$education)
+fisher.test(cons$Groups, cons$education)
+
+table(cons$Groups, cons$What.is.your.occupation.)
+fisher.test(cons$Groups, cons$What.is.your.occupation.)
+
+table(cons$Groups, cons$What.best.describes.your.living.conditions.)
+fisher.test(cons$Groups, cons$What.best.describes.your.living.conditions.)
+
+table(cons$Groups, cons$Do.you.have.a.disability.)
+fisher.test(cons$Groups, cons$Do.you.have.a.disability.)
+
+table(cons$Groups, cons$comfortable.touchscreen.tech) # nb question How comfortable are you with the use of touchscreen mobile devices (e.g. smartphones or tablets)?
+fisher.test(cons$Groups, cons$comfortable.touchscreen.tech)
+
+table(cons$Groups, cons$intersted.health.tech.monitoring) # nb How interested are you in using technology to self-monitor your health at home, rather than relying solely on clinical appointments (for example with your GP)?
+fisher.test(cons$Groups, cons$intersted.health.tech.monitoring)
+
+table(cons$Groups, cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+fisher.test(cons$Groups, cons$Do.you.use..or.have.you.ever.used..technology.to.self.monitor.your.health.at.home.)
+```
+
+
+```{r}
+xtable(table(cons$Groups, cons$intersted.health.tech.monitoring))
+```
+
+## Plotting the Enthusiasts vs others
+
+```{r plots-groups, echo=FALSE}
+cons$Groups<- factor(cons$Groups , levels = c("Enthusiast", "Mixed", "Neutral", "Opponent"))
+cons$intersted.health.tech.monitoring<-factor(cons$intersted.health.tech.monitoring, levels = c("Not interested at all","Not very interested", "Neutral", "Somewhat interested", "Very interested") )
+
+ggplot(cons, aes(x=intersted.health.tech.monitoring)) + geom_bar(aes(fill=Groups), position = "dodge") + theme_classic()+
+   scale_fill_grey() + ggtitle("Group (Enthusiast, Mixed or Opponent) vs Interest in Health Monitoring" ) + xlab("Interest in Health Monitoring")
+
+ggplot(cons, aes(x=Groups)) + geom_bar(aes(fill=intersted.health.tech.monitoring), position = "dodge") + theme_classic()+
+   scale_fill_grey() + ggtitle("Group (Enthusiast, Mixed or Opponent) vs Interest in Health Monitoring" ) + xlab("Group")
+```
+
